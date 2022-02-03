@@ -13,6 +13,17 @@ SimpleMBCompAudioProcessor::SimpleMBCompAudioProcessor()
                        )
 #endif
 {
+    attack = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter("Attack"));
+    jassert(attack != nullptr);
+    
+    release = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter("Release"));
+    jassert(release != nullptr);
+    
+    threshold = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter("Threshold"));
+    jassert(threshold != nullptr);
+    
+    ratio = dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter("Ratio"));
+    jassert(ratio != nullptr);
 }
 
 SimpleMBCompAudioProcessor::~SimpleMBCompAudioProcessor(){}
@@ -73,7 +84,15 @@ const juce::String SimpleMBCompAudioProcessor::getProgramName (int index)
 
 void SimpleMBCompAudioProcessor::changeProgramName (int index, const juce::String& newName){}
 
-void SimpleMBCompAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock){}
+void SimpleMBCompAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    juce::dsp::ProcessSpec spec;
+    spec.sampleRate = sampleRate;
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.numChannels = getTotalNumOutputChannels();
+    
+    compressor.prepare(spec);
+}
 
 void SimpleMBCompAudioProcessor::releaseResources(){}
 
@@ -104,11 +123,16 @@ void SimpleMBCompAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
+    
+    compressor.setAttack(attack->get());
+    compressor.setRelease(release->get());
+    compressor.setThreshold(threshold->get());
+    compressor.setRatio(ratio->getCurrentChoiceName().getFloatValue());
 
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-    }
+    auto block = juce::dsp::AudioBlock<float> (buffer);
+    auto context = juce::dsp::ProcessContextReplacing<float>(block);
+    
+    compressor.process(context);
 }
 
 bool SimpleMBCompAudioProcessor::hasEditor() const
